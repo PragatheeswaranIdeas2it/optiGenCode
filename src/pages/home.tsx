@@ -1,6 +1,11 @@
 import Select from "react-select";
 import { dracula, CopyBlock } from "react-code-blocks";
-import { getBranchList, getCodeLamaUrl, getCommitList } from "../api";
+import {
+  getBranchList,
+  getCodeLamaUrl,
+  getCommitList,
+  getCommitDetails,
+} from "../api";
 import { useEffect, useState } from "react";
 
 const suggestionOption = [
@@ -39,6 +44,19 @@ interface BranchCommit {
   parents: any[];
 }
 
+interface BranchCommitData {
+  sha: string;
+  node_id: string;
+  commit: any;
+  url: string;
+  html_url: string;
+  comments_url: string;
+  author: any;
+  committer: any;
+  parents: any[];
+  files: any[];
+}
+
 interface ModifiedBranchCommit {
   sha: string;
   node_id: string;
@@ -56,6 +74,7 @@ interface ModifiedBranchCommit {
 export default function Home() {
   const [branches, setBranches] = useState<ModifiedBranch[]>();
   const [commits, setCommits] = useState<BranchCommit[]>();
+  const [commitsData, setCommitsData] = useState<BranchCommitData>();
   const [suggesstion, setSuggesstion] = useState<string | null>();
   const [activeBranch, setActiveBranch] = useState<string>("master");
   const [isLoading, setIsLoading] = useState(false);
@@ -98,22 +117,31 @@ export default function Home() {
     }
   };
 
+  const getCommitDataDetails = async (commitId: string) => {
+    try {
+      const { data } = await getCommitDetails(activeBranch, commitId);
+      setCommitsData(data);
+    } catch (error) {
+      console.error(`Error fetching commit list: ${error}`);
+    }
+  };
+
   const getCode = async () => {
-    console.log(activeBranch);
     setIsLoading(true);
     try {
-      const data = await getCodeLamaUrl(activeBranch);
-      console.log(data?.data?.choices);
+      const payload = {
+        system_message: `Code: Kotlin suggestion - ${commitsData?.commit?.message}`,
+        user_message: commitsData?.files[0]?.patch,
+        max_tokens: 10000,
+      };
+      const data = await getCodeLamaUrl(activeBranch, payload);
       setSuggesstion(data?.data?.choices?.[0]?.text);
-      // // setActiveBranch(activeBranch || "master");
-      // console.log(data);
       setIsLoading(false);
     } catch (error) {
       console.log(`Error fetching commit list: ${error}`);
       setIsLoading(false);
     }
   };
-  console.log(suggesstion);
   return (
     <>
       <div className="bg-white">
@@ -168,7 +196,12 @@ export default function Home() {
                     </label>
                     <Select
                       options={commits}
-                      onChange={(commitName: any) => console.log(commitName)}
+                      onChange={
+                        (commitName: any) => {
+                          getCommitDataDetails(commitName?.sha);
+                        }
+                        // getCodeData(commitName?.name)
+                      }
                     />
                   </div>
                 </form>
